@@ -17,6 +17,7 @@ Format JSON đầu vào (Jira native):
 """
 
 import os
+import re
 import sys
 import json
 import requests
@@ -56,33 +57,43 @@ TEAMS = {
     "team1": {
         "name": "Team 1 — Usability",
         "keywords": [
-            "nhập hàng", "chuyển hàng", "xuất hủy", "kiểm kho",
-            "trả hàng nhập", "trả nhập", "thiết lập", "tổng quan",
-            "báo cáo", "mua hàng", "phiếu nhập", "phiếu xuất hủy",
-            "phiếu chuyển", "nhap hang", "kiem kho", "bao cao",
-            "setting", "report", "purchase", "inventory", "warehouse",
-            "transfer stock", "xuat huy",
+            "báo cáo", "bao cao", "report", "bc", "bccn",
+            "nhập hàng", "nhap hang",
+            "trả hàng nhập", "trả nhập",
+            "thiết lập", "thiet lap", "setting",
+            "kiểm kho", "kiem kho",
+            "xuất hủy", "xuat huy",
+            "tổng quan", "tong quan",
+            "hóa đơn", "hoá đơn",
+            "chuyển hàng", "mua hàng",
+            "phiếu nhập", "phiếu xuất hủy", "phiếu chuyển",
+            "inventory", "warehouse", "transfer stock", "purchase",
         ],
     },
     "team2": {
         "name": "Team 2 — Functionality",
         "keywords": [
-            "hàng hóa", "hàng hoá", "foodapp", "food app",
-            "grabfood", "grab food", "[gf", "gf -", "gf:", "trên gf",
-            "shopeefood", "shopee food", "shopee", "grab",
+            "hàng hóa", "hàng hoá",
+            "món", "mon",
+            "foodapp", "food app",
+            "đồng bộ", "dong bo",
+            "grabfood", "grab food", "[gf", "gf -", "gf:", "trên gf", "grab",
+            "shopeefood", "shopee food", "shopee",
             "khuyến mại", "khuyen mai", "emenu", "e-menu",
-            "in bếp", "in kitchen", "đồng bộ", "dong bo",
+            "in bếp", "in kitchen", "kitchen",
             "kết nối", "ket noi", "sync", "baemin",
-            "promotion", "kitchen", "appkn",
+            "promotion", "appkn",
         ],
     },
     "team3": {
         "name": "Team 3 — Thuế và HĐDT",
         "keywords": [
-            "thuế", "thue", "vat", "hddt", "hđdt",
+            "vat",
+            "hddt", "hđdt", "hđđt", "hd dt",
             "hóa đơn điện tử", "hoá đơn điện tử",
-            "hd dt", "einvoice", "e-invoice", "tax",
-            "hóa đơn", "hoá đơn", "kê khai", "giảm thuế",
+            "einvoice", "e-invoice",
+            "thuế", "thue", "tax", "giảm thuế",
+            "kê khai", "ke khai",
         ],
     },
 }
@@ -91,12 +102,44 @@ TEAMS = {
 #  TICKET CLASSIFICATION
 # ══════════════════════════════════════════════════════════════════════
 
+# Map giá trị field Subteam_FnB → team.
+# Giá trị "PST" (hoặc bất kỳ giá trị nào không có ở đây) → BỎ QUA rule này,
+# rơi xuống phân loại theo keyword.
+SUBTEAM_MAP = {
+    "team1": "team1", "team 1": "team1",
+    "team2": "team2", "team 2": "team2",
+    "team3": "team3", "team 3": "team3",
+}
+
+
+def _kw_match(keyword: str, haystack: str) -> bool:
+    """Khớp keyword như một 'từ' nguyên, không phải chuỗi con.
+
+    Biên từ = không đứng liền trước/sau bởi chữ cái hoặc chữ số
+    (gạch dưới, dấu cách, ngoặc, dấu câu đều tính là biên).
+    Nhờ vậy 'in' KHÔNG dính vào 'login', 'bc' không dính 'abc',
+    nhưng 'appkn' vẫn khớp trong 'appkn_pb'.
+    """
+    pattern = r'(?<![^\W_])' + re.escape(keyword) + r'(?![^\W_])'
+    return re.search(pattern, haystack) is not None
+
+
 def classify(issue: dict) -> str:
     """Phân loại ticket vào team1 / team2 / team3 / other.
 
-    Thứ tự ưu tiên: team3 (thuế/VAT đặc thù) → team1 → team2.
+    Ưu tiên:
+    1. Field Subteam_FnB ∈ {Team1, Team2, Team3} → map thẳng
+       (nếu = PST hoặc rỗng → bỏ qua, dùng keyword)
+    2. Keyword theo thứ tự team3 → team1 → team2 (khớp theo từ nguyên)
     """
     f = issue.get("fields", {})
+
+    # (1) Ưu tiên field Subteam_FnB nếu là Team1/2/3
+    subteam = (f.get("subteam_fnb") or "").strip().lower()
+    if subteam in SUBTEAM_MAP:
+        return SUBTEAM_MAP[subteam]
+
+    # (2) Fallback: match keyword theo từ nguyên
     summary    = (f.get("summary") or "").lower()
     labels     = " ".join(f.get("labels", []) or []).lower()
     components = " ".join(
@@ -106,7 +149,7 @@ def classify(issue: dict) -> str:
 
     for team_id in ("team3", "team1", "team2"):
         for kw in TEAMS[team_id]["keywords"]:
-            if kw.lower() in haystack:
+            if _kw_match(kw.lower(), haystack):
                 return team_id
     return "other"
 
@@ -120,12 +163,21 @@ PRIORITY_EMOJI = {
     "Medium":  "🟡",
     "Low":     "🟢",
 }
+PRIORITY_RANK = {"Highest": 0, "High": 1, "Medium": 2, "Low": 3}
 TICKET_BASE = "https://citigo.atlassian.net/browse"
 DIVIDER = "━" * 36
 
 
 def _safe_name(d) -> str:
     return (d or {}).get("name", "?") if isinstance(d, dict) else "?"
+
+
+def _sort_by_priority(issues: list) -> list:
+    """Sắp xếp: Highest → High → Medium → Low (rồi đến các loại khác)."""
+    return sorted(
+        issues,
+        key=lambda i: PRIORITY_RANK.get(_safe_name(i.get("fields", {}).get("priority")), 99),
+    )
 
 
 def _fmt_issue(issue: dict) -> str:
@@ -150,7 +202,7 @@ def build_new_issue_msg(team_id: str, issues: list, date_str: str) -> str:
     if not issues:
         lines.append("✅  Không có ticket mới hôm qua.")
     else:
-        lines.extend(_fmt_issue(i) for i in issues)
+        lines.extend(_fmt_issue(i) for i in _sort_by_priority(issues))
     return "\n".join(lines)
 
 
@@ -165,7 +217,7 @@ def build_high_issue_msg(team_id: str, issues: list) -> str:
     if not issues:
         lines.append("✅  Không có ticket High/Highest đang mở.")
     else:
-        lines.extend(_fmt_issue(i) for i in issues)
+        lines.extend(_fmt_issue(i) for i in _sort_by_priority(issues))
     return "\n".join(lines)
 
 
@@ -173,10 +225,10 @@ def build_other_msg(new_issues: list, high_issues: list) -> str:
     lines = [f"📦  *KHÁC — Chưa phân loại*", DIVIDER]
     if new_issues:
         lines.append(f"🆕  New ({len(new_issues)} tickets):")
-        lines.extend(_fmt_issue(i) for i in new_issues)
+        lines.extend(_fmt_issue(i) for i in _sort_by_priority(new_issues))
     if high_issues:
         lines.append(f"\n⚠️  High ({len(high_issues)} tickets):")
-        lines.extend(_fmt_issue(i) for i in high_issues)
+        lines.extend(_fmt_issue(i) for i in _sort_by_priority(high_issues))
     if not new_issues and not high_issues:
         lines.append("✅  Không có ticket nào.")
     return "\n".join(lines)
@@ -229,7 +281,14 @@ def main():
     high_issues = data.get("high_issues", [])
     date_str    = data.get("date") or (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
 
-    print(f"📥  Đọc được: {len(new_issues)} new  |  {len(high_issues)} high\n")
+    # Loại trùng: ticket đã có ở NEW ISSUE thì bỏ khỏi HIGH ISSUES
+    new_keys = {i.get("key") for i in new_issues}
+    before_high = len(high_issues)
+    high_issues = [i for i in high_issues if i.get("key") not in new_keys]
+    dup_removed = before_high - len(high_issues)
+
+    print(f"📥  Đọc được: {len(new_issues)} new  |  {len(high_issues)} high"
+          f"  (đã loại {dup_removed} ticket trùng khỏi High)\n")
 
     # ── Phân loại ────────────────────────────────────────────────────
     new_by_team  = defaultdict(list)

@@ -10,7 +10,7 @@ Báo cáo board FNB hàng ngày. **Dùng Atlassian MCP connector** để query J
 cloudId của citigo: `3fc829f0-cfb5-431f-bd71-598bd3816b2f`
 
 Dùng tool `searchJiraIssuesUsingJql` chạy 2 query. Với mỗi query, lấy các
-fields: `summary, status, priority, issuetype, created, labels, components`.
+fields: `summary, status, priority, issuetype, created, labels, components, Subteam_FnB`.
 Lấy tối đa 100 kết quả mỗi query (phân trang nếu cần).
 
 **Query A — Production Bug mới tạo HÔM QUA:**
@@ -47,7 +47,8 @@ vì script đọc theo `issue["fields"]["..."]`):
         "issuetype": {"name": "Production Bug"},
         "status":    {"name": "New"},
         "labels":    ["label1"],
-        "components":[{"name": "..."}]
+        "components":[{"name": "..."}],
+        "subteam_fnb": "giá trị field Subteam_FnB (chuỗi, rỗng nếu không có)"
       }
     }
   ],
@@ -58,6 +59,8 @@ vì script đọc theo `issue["fields"]["..."]`):
 Quy tắc:
 - Toàn bộ kết quả Query A → mảng `new_issues`
 - Toàn bộ kết quả Query B → mảng `high_issues`
+- `subteam_fnb`: lấy giá trị (text) của field Subteam_FnB. Nếu field là object
+  có `.value`, lấy `.value`; nếu trống thì để chuỗi rỗng `""`.
 - `date` = ngày hôm qua (DD/MM/YYYY)
 - Field nào thiếu/null → để `{"name": ""}` hoặc `[]`, KHÔNG bỏ trống key
 
@@ -65,16 +68,33 @@ Quy tắc:
 
 ## Bước 3: Chạy script gửi báo cáo
 
+⚠️ **BẮT BUỘC:** Việc gửi tin nhắn Google Chat CHỈ được thực hiện bằng script
+`process_and_send.py`. Script đã lo toàn bộ: sắp xếp theo priority
+(Highest→High→Medium→Low), loại ticket trùng giữa NEW và HIGH, phân loại team,
+format link ticket, và gọi webhook.
+
 ```bash
 pip install requests
 python process_and_send.py /tmp/jira_data.json
 ```
 
+🚫 **TUYỆT ĐỐI KHÔNG:**
+- KHÔNG tự gọi webhook Google Chat (curl/requests) bằng tay
+- KHÔNG tự format/sắp xếp/lọc danh sách ticket rồi gửi
+- KHÔNG tự soạn nội dung tin nhắn thay cho script
+
+Nhiệm vụ của bạn chỉ gồm: query Jira (Bước 1) → ghi JSON (Bước 2) →
+**CHẠY SCRIPT** (Bước 3). Mọi việc gửi tin là của script, không phải của bạn.
+
+Nếu script báo lỗi, sửa file JSON cho đúng format rồi CHẠY LẠI SCRIPT —
+không được gửi tin thủ công thay thế.
+
 ---
 
 ## Bước 4: Xác nhận
 
-Đọc log, báo lại:
-- Số ticket new / high đọc được
+Đọc log của script, báo lại:
+- Số ticket new / high đọc được (và số ticket trùng đã loại)
 - Phân bổ theo Team1 / Team2 / Team3 / Khác
 - Trạng thái gửi webhook (✅/❌) cho cả 3 team
+
