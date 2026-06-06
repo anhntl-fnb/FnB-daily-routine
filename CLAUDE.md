@@ -9,7 +9,7 @@ Phân loại ticket theo 3 team và gửi kết quả vào Google Chat.
 Thực hiện đúng thứ tự:
 
 ```bash
-pip install -r requirements.txt --quiet
+pip install -r requests --quiet
 python daily_report.py
 ```
 
