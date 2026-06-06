@@ -1,104 +1,25 @@
-# FNB Daily Report — Routine (MCP version)
+# FNB Daily Report — Claude Code Routine
 
-Báo cáo board FNB hàng ngày. **Dùng Atlassian MCP connector** để query Jira
-(KHÔNG dùng API token — đã bỏ vì lỗi 403).
+## Mô tả
+Chạy báo cáo hàng ngày lúc 8:00 sáng cho board Jira FNB.
+Phân loại ticket theo 3 team và gửi kết quả vào Google Chat.
 
----
+## Cách chạy
 
-## Bước 1: Query Jira qua Atlassian MCP
-
-cloudId của citigo: `3fc829f0-cfb5-431f-bd71-598bd3816b2f`
-
-Dùng tool `searchJiraIssuesUsingJql` chạy 2 query. Với mỗi query, lấy các
-fields: `summary, status, priority, issuetype, created, labels, components, Subteam_FnB, Module FnB`.
-Lấy tối đa 100 kết quả mỗi query (phân trang nếu cần).
-
-**Query A — Production Bug mới tạo HÔM QUA:**
-```
-project = FNB AND issuetype = "Production Bug" AND created >= startOfDay(-1) AND created < startOfDay() ORDER BY priority ASC, created DESC
-```
-
-**Query B — Production Bug đang open, ưu tiên cao:**
-```
-project = FNB AND issuetype = "Production Bug" AND status in (New, "In Progress", Considering, "Ready for staging") AND (priority in (High, Highest) OR "Impact scope" > 1) ORDER BY priority ASC, created ASC
-```
-
-> Lưu ý: `"Impact scope"` là custom field. Nếu JQL báo lỗi không nhận field này
-> (vd "Field 'Impact scope' does not exist"), thử thay bằng tên đúng hoặc
-> `cf[XXXXX]` (ID custom field). Nếu field là dạng dropdown chứ không phải số,
-> điều kiện `> 1` có thể cần đổi (vd `in ("2","3",...)`).
-
----
-
-## Bước 2: Lưu kết quả ra file JSON
-
-Ghi file `/tmp/jira_data.json` theo ĐÚNG cấu trúc sau (giữ nguyên format Jira native,
-vì script đọc theo `issue["fields"]["..."]`):
-
-```json
-{
-  "date": "DD/MM/YYYY",
-  "new_issues": [
-    {
-      "key": "FNB-XXXX",
-      "fields": {
-        "summary": "tiêu đề ticket",
-        "priority":  {"name": "Medium"},
-        "issuetype": {"name": "Production Bug"},
-        "status":    {"name": "New"},
-        "labels":    ["label1"],
-        "components":[{"name": "..."}],
-        "subteam_fnb": "giá trị field Subteam_FnB (chuỗi, rỗng nếu không có)",
-        "module_fnb": "giá trị field Module FnB (chuỗi, rỗng nếu không có)"
-      }
-    }
-  ],
-  "high_issues": [ ... cùng cấu trúc ... ]
-}
-```
-
-Quy tắc:
-- Toàn bộ kết quả Query A → mảng `new_issues`
-- Toàn bộ kết quả Query B → mảng `high_issues`
-- `subteam_fnb`: giá trị (text) của field Subteam_FnB. Nếu là object có `.value`
-  thì lấy `.value`; rỗng thì `""`.
-- `module_fnb`: giá trị (text) của field Module FnB (vd "Hàng hóa", "Thuế & HĐDT",
-  "Đơn hàng"...). Nếu là object có `.value` thì lấy `.value`; rỗng thì `""`.
-  Script dùng field này để phân loại team (ưu tiên hơn keyword).
-- `date` = ngày hôm qua (DD/MM/YYYY)
-- Field nào thiếu/null → để `{"name": ""}` hoặc `[]`, KHÔNG bỏ trống key
-
----
-
-## Bước 3: Chạy script gửi báo cáo
-
-⚠️ **BẮT BUỘC:** Việc gửi tin nhắn Google Chat CHỈ được thực hiện bằng script
-`process_and_send.py`. Script đã lo toàn bộ: sắp xếp theo priority
-(Highest→High→Medium→Low), loại ticket trùng giữa NEW và HIGH, phân loại team,
-format link ticket, và gọi webhook.
+Thực hiện đúng thứ tự:
 
 ```bash
-pip install requests
-python process_and_send.py /tmp/jira_data.json
+pip install -r requirements.txt --quiet
+python daily_report.py
 ```
 
-🚫 **TUYỆT ĐỐI KHÔNG:**
-- KHÔNG tự gọi webhook Google Chat (curl/requests) bằng tay
-- KHÔNG tự format/sắp xếp/lọc danh sách ticket rồi gửi
-- KHÔNG tự soạn nội dung tin nhắn thay cho script
+## Nếu script báo lỗi thiếu credentials
 
-Nhiệm vụ của bạn chỉ gồm: query Jira (Bước 1) → ghi JSON (Bước 2) →
-**CHẠY SCRIPT** (Bước 3). Mọi việc gửi tin là của script, không phải của bạn.
+Kiểm tra các biến môi trường sau đã được cấu hình trong Routine:
+- `JIRA_EMAIL`
+- `JIRA_API_TOKEN`
 
-Nếu script báo lỗi, sửa file JSON cho đúng format rồi CHẠY LẠI SCRIPT —
-không được gửi tin thủ công thay thế.
+## Không cần làm gì khác
 
----
-
-## Bước 4: Xác nhận
-
-Đọc log của script, báo lại:
-- Số ticket new / high đọc được (và số ticket trùng đã loại)
-- Phân bổ theo Team1 / Team2 / Team3 / Khác
-- Trạng thái gửi webhook (✅/❌) cho cả 3 team
-
+Script tự xử lý toàn bộ: query Jira → phân loại → gửi webhook.
+Đọc log output để kiểm tra kết quả từng bước.
