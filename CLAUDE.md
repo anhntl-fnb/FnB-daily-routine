@@ -10,7 +10,7 @@ Báo cáo board FNB hàng ngày. **Dùng Atlassian MCP connector** để query J
 cloudId của citigo: `3fc829f0-cfb5-431f-bd71-598bd3816b2f`
 
 Dùng tool `searchJiraIssuesUsingJql` chạy 2 query. Với mỗi query, lấy các
-fields: `summary, status, priority, issuetype, created, labels, components, Subteam_FnB`.
+fields: `summary, status, priority, issuetype, created, labels, components, Subteam_FnB, Module FnB`.
 Lấy tối đa 100 kết quả mỗi query (phân trang nếu cần).
 
 **Query A — Production Bug mới tạo HÔM QUA:**
@@ -48,7 +48,8 @@ vì script đọc theo `issue["fields"]["..."]`):
         "status":    {"name": "New"},
         "labels":    ["label1"],
         "components":[{"name": "..."}],
-        "subteam_fnb": "giá trị field Subteam_FnB (chuỗi, rỗng nếu không có)"
+        "subteam_fnb": "giá trị field Subteam_FnB (chuỗi, rỗng nếu không có)",
+        "module_fnb": "giá trị field Module FnB (chuỗi, rỗng nếu không có)"
       }
     }
   ],
@@ -59,8 +60,11 @@ vì script đọc theo `issue["fields"]["..."]`):
 Quy tắc:
 - Toàn bộ kết quả Query A → mảng `new_issues`
 - Toàn bộ kết quả Query B → mảng `high_issues`
-- `subteam_fnb`: lấy giá trị (text) của field Subteam_FnB. Nếu field là object
-  có `.value`, lấy `.value`; nếu trống thì để chuỗi rỗng `""`.
+- `subteam_fnb`: giá trị (text) của field Subteam_FnB. Nếu là object có `.value`
+  thì lấy `.value`; rỗng thì `""`.
+- `module_fnb`: giá trị (text) của field Module FnB (vd "Hàng hóa", "Thuế & HĐDT",
+  "Đơn hàng"...). Nếu là object có `.value` thì lấy `.value`; rỗng thì `""`.
+  Script dùng field này để phân loại team (ưu tiên hơn keyword).
 - `date` = ngày hôm qua (DD/MM/YYYY)
 - Field nào thiếu/null → để `{"name": ""}` hoặc `[]`, KHÔNG bỏ trống key
 

@@ -104,11 +104,50 @@ TEAMS = {
 
 # Map giá trị field Subteam_FnB → team.
 # Giá trị "PST" (hoặc bất kỳ giá trị nào không có ở đây) → BỎ QUA rule này,
-# rơi xuống phân loại theo keyword.
+# rơi xuống phân loại theo Module FnB / keyword.
 SUBTEAM_MAP = {
     "team1": "team1", "team 1": "team1",
     "team2": "team2", "team 2": "team2",
     "team3": "team3", "team 3": "team3",
+}
+
+# Map giá trị field "Module FnB" → team (khớp chính xác sau khi chuẩn hoá lowercase).
+MODULE_MAP = {
+    # ── Team 3 ───────────────────────────────────────────────
+    "thuế & hđdt": "team3", "thuế & hddt": "team3",
+    "thuế và hđdt": "team3", "thuế và hddt": "team3",
+    "kma": "team3",
+    "public api": "team3",
+    # ── Team 2 ───────────────────────────────────────────────
+    "hàng hóa": "team2", "hàng hoá": "team2",
+    "đơn hàng": "team2",
+    "máy in": "team2",
+    "đồng bộ pos": "team2",
+    "khuyến mại": "team2",
+    "kết ca": "team2",
+    "notification": "team2",
+    "bếp": "team2",
+    "lễ tân": "team2",
+    "menu điện tử": "team2",
+    "food apps": "team2", "food app": "team2",
+    # ── Team 1 ───────────────────────────────────────────────
+    "tổng quan/báo cáo": "team1", "tổng quan / báo cáo": "team1",
+    "tổng quan": "team1", "báo cáo": "team1",
+    "phòng bàn": "team1",
+    "hóa đơn": "team1", "hoá đơn": "team1",
+    "nhập hàng": "team1",
+    "trả hàng": "team1",
+    "trả hàng nhập": "team1",
+    "chuyển hàng": "team1",
+    "xuất hủy": "team1",
+    "import/export": "team1", "import / export": "team1",
+    "đối tác": "team1",
+    "sổ quỹ": "team1",
+    "mẫu in": "team1",
+    "thu khác": "team1",
+    "bảng giá": "team1",
+    "tài khoản": "team1",
+    "thiết lập": "team1",
 }
 
 
@@ -129,8 +168,9 @@ def classify(issue: dict) -> str:
 
     Ưu tiên:
     1. Field Subteam_FnB ∈ {Team1, Team2, Team3} → map thẳng
-       (nếu = PST hoặc rỗng → bỏ qua, dùng keyword)
-    2. Keyword theo thứ tự team3 → team1 → team2 (khớp theo từ nguyên)
+       (nếu = PST hoặc rỗng → bỏ qua, sang bước sau)
+    2. Field Module FnB → map theo MODULE_MAP
+    3. Keyword theo thứ tự team3 → team1 → team2 (khớp theo từ nguyên)
     """
     f = issue.get("fields", {})
 
@@ -139,7 +179,12 @@ def classify(issue: dict) -> str:
     if subteam in SUBTEAM_MAP:
         return SUBTEAM_MAP[subteam]
 
-    # (2) Fallback: match keyword theo từ nguyên
+    # (2) Phân loại theo field Module FnB
+    module = (f.get("module_fnb") or "").strip().lower()
+    if module in MODULE_MAP:
+        return MODULE_MAP[module]
+
+    # (3) Fallback: match keyword theo từ nguyên
     summary    = (f.get("summary") or "").lower()
     labels     = " ".join(f.get("labels", []) or []).lower()
     components = " ".join(
