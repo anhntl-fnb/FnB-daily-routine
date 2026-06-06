@@ -13,15 +13,20 @@ Dùng tool `searchJiraIssuesUsingJql` chạy 2 query. Với mỗi query, lấy c
 fields: `summary, status, priority, issuetype, created, labels, components`.
 Lấy tối đa 100 kết quả mỗi query (phân trang nếu cần).
 
-**Query A — Tickets mới tạo HÔM QUA:**
+**Query A — Production Bug mới tạo HÔM QUA:**
 ```
-project = FNB AND created >= startOfDay(-1) AND created < startOfDay() ORDER BY priority ASC, created DESC
+project = FNB AND issuetype = "Production Bug" AND created >= startOfDay(-1) AND created < startOfDay() ORDER BY priority ASC, created DESC
 ```
 
-**Query B — High/Highest đang open:**
+**Query B — Production Bug đang open, ưu tiên cao:**
 ```
-project = FNB AND priority in (High, Highest) AND status in (New, "In Progress", Considering, "Ready for staging") ORDER BY priority ASC, created ASC
+project = FNB AND issuetype = "Production Bug" AND status in (New, "In Progress", Considering, "Ready for staging") AND (priority in (High, Highest) OR "Impact scope" > 1) ORDER BY priority ASC, created ASC
 ```
+
+> Lưu ý: `"Impact scope"` là custom field. Nếu JQL báo lỗi không nhận field này
+> (vd "Field 'Impact scope' does not exist"), thử thay bằng tên đúng hoặc
+> `cf[XXXXX]` (ID custom field). Nếu field là dạng dropdown chứ không phải số,
+> điều kiện `> 1` có thể cần đổi (vd `in ("2","3",...)`).
 
 ---
 

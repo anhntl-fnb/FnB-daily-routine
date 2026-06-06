@@ -27,8 +27,6 @@ from collections import defaultdict
 #  CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════
 
-BOARD_URL = "https://citigo.atlassian.net/jira/software/c/projects/FNB/boards/7078"
-
 WEBHOOKS = {
     "team1": os.environ.get(
         "GCHAT_WEBHOOK_TEAM1",
@@ -56,7 +54,7 @@ WEBHOOKS = {
 
 TEAMS = {
     "team1": {
-        "name": "Team 1 — Kho & Báo cáo",
+        "name": "Team 1 — Usability",
         "keywords": [
             "nhập hàng", "chuyển hàng", "xuất hủy", "kiểm kho",
             "trả hàng nhập", "trả nhập", "thiết lập", "tổng quan",
@@ -67,7 +65,7 @@ TEAMS = {
         ],
     },
     "team2": {
-        "name": "Team 2 — Hàng hóa & F&B App",
+        "name": "Team 2 — Functionality",
         "keywords": [
             "hàng hóa", "hàng hoá", "foodapp", "food app",
             "grabfood", "grab food", "[gf", "gf -", "gf:", "trên gf",
@@ -79,7 +77,7 @@ TEAMS = {
         ],
     },
     "team3": {
-        "name": "Team 3 — Thuế & HĐDT",
+        "name": "Team 3 — Thuế và HĐDT",
         "keywords": [
             "thuế", "thue", "vat", "hddt", "hđdt",
             "hóa đơn điện tử", "hoá đơn điện tử",
@@ -117,13 +115,12 @@ def classify(issue: dict) -> str:
 # ══════════════════════════════════════════════════════════════════════
 
 PRIORITY_EMOJI = {
-    "Highest": "🔴", "Critical": "🔴",
-    "High": "🟠", "Medium": "🟡", "Low": "⚪",
+    "Highest": "🔴",
+    "High":    "🟠",
+    "Medium":  "🟡",
+    "Low":     "🟢",
 }
-TYPE_EMOJI = {
-    "Production Bug": "🐛", "Bug-In-Development": "🔧",
-    "Support": "📞", "Task": "✅", "Sub-task": "🔗", "Story": "📗",
-}
+TICKET_BASE = "https://citigo.atlassian.net/browse"
 DIVIDER = "━" * 36
 
 
@@ -134,13 +131,12 @@ def _safe_name(d) -> str:
 def _fmt_issue(issue: dict) -> str:
     f        = issue.get("fields", {})
     key      = issue.get("key", "?")
-    summary  = (f.get("summary") or "N/A")[:75]
+    summary  = f.get("summary") or "N/A"
     priority = _safe_name(f.get("priority"))
-    itype    = _safe_name(f.get("issuetype"))
     status   = _safe_name(f.get("status"))
     p_em     = PRIORITY_EMOJI.get(priority, "⚪")
-    t_em     = TYPE_EMOJI.get(itype, "📌")
-    return f"{p_em}{t_em} *{key}* [{status}]\n      _{summary}_"
+    key_link = f"<{TICKET_BASE}/{key}|{key}>"
+    return f"{p_em} *{key_link}* [{status}]\n      _{summary}_"
 
 
 def build_new_issue_msg(team_id: str, issues: list, date_str: str) -> str:
@@ -155,7 +151,6 @@ def build_new_issue_msg(team_id: str, issues: list, date_str: str) -> str:
         lines.append("✅  Không có ticket mới hôm qua.")
     else:
         lines.extend(_fmt_issue(i) for i in issues)
-    lines += ["", f"🔗  {BOARD_URL}"]
     return "\n".join(lines)
 
 
@@ -171,7 +166,6 @@ def build_high_issue_msg(team_id: str, issues: list) -> str:
         lines.append("✅  Không có ticket High/Highest đang mở.")
     else:
         lines.extend(_fmt_issue(i) for i in issues)
-    lines += ["", f"🔗  {BOARD_URL}"]
     return "\n".join(lines)
 
 
@@ -185,7 +179,6 @@ def build_other_msg(new_issues: list, high_issues: list) -> str:
         lines.extend(_fmt_issue(i) for i in high_issues)
     if not new_issues and not high_issues:
         lines.append("✅  Không có ticket nào.")
-    lines += ["", f"🔗  {BOARD_URL}"]
     return "\n".join(lines)
 
 # ══════════════════════════════════════════════════════════════════════
