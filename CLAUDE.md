@@ -13,12 +13,12 @@ Dùng tool `searchJiraIssuesUsingJql` chạy 2 query. Với mỗi query, lấy c
 fields: `summary, status, priority, issuetype, created, labels, components, Subteam_FnB, Module FnB 2.0`.
 Lấy tối đa 100 kết quả mỗi query (phân trang nếu cần).
 
-**Query A — Bug mới tạo HÔM QUA:**
+**Query A — Production Bug mới tạo HÔM QUA:**
 ```
-project = PST AND "Sản phẩm" = FnB AND issuetype != "New Feature" AND created >= startOfDay(-1) AND created < startOfDay() ORDER BY priority ASC, created DESC
+project = PST AND "Sản phẩm" = FnB AND issuetype != "New Feature" AND status not in (Closed, Resolved) AND created >= startOfDay(-1) AND created < startOfDay() ORDER BY priority ASC, created DESC
 ```
 
-**Query B — Bug đang open, ưu tiên cao:**
+**Query B — Production Bug đang open, ưu tiên cao:**
 ```
 project = PST AND "Sản phẩm" = FnB AND status in (Open, Triaged, Transfer, "In Progress", Reopened, Testing) AND (priority in (High, Highest) OR "Impact scope" > 1) ORDER BY priority ASC, created ASC
 ```
@@ -40,12 +40,12 @@ vì script đọc theo `issue["fields"]["..."]`):
   "date": "DD/MM/YYYY",
   "new_issues": [
     {
-      "key": "PST-XXXX",
+      "key": "FNB-XXXX",
       "fields": {
         "summary": "tiêu đề ticket",
         "priority":  {"name": "Medium"},
-        "issuetype": {"name": "Bug"},
-        "status":    {"name": "Open"},
+        "issuetype": {"name": "Production Bug"},
+        "status":    {"name": "New"},
         "labels":    ["label1"],
         "components":[{"name": "..."}],
         "subteam_fnb": "giá trị field Subteam_FnB (chuỗi, rỗng nếu không có)",
@@ -101,3 +101,4 @@ không được gửi tin thủ công thay thế.
 - Số ticket new / high đọc được (và số ticket trùng đã loại)
 - Phân bổ theo Team1 / Team2 / Team3 / Khác
 - Trạng thái gửi webhook (✅/❌) cho cả 3 team
+
